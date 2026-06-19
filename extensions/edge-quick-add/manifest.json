@@ -24,6 +24,7 @@
   ],
   "host_permissions": [
     "http://127.0.0.1:8099/*",
-    "http://localhost:8099/*"
+    "http://localhost:8099/*",
+    "http://lpsoar.bbroot.com:38099/*"
   ]
 }
