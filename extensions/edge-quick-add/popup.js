@@ -23,10 +23,20 @@ function renderCategories(categories = [], selected = '') {
   select.value = selected || values[0] || '主页';
 }
 
+async function saveCurrentOptions() {
+  return send({
+    type: 'save-options',
+    baseUrl: $('baseUrl').value,
+    category: $('category').value,
+    openAfterAdd: $('openAfterAdd').checked
+  });
+}
+
 (async () => {
   const cfg = await send({ type: 'load-options' });
   if (cfg?.ok) {
     $('baseUrl').value = cfg.baseUrl;
+    $('openAfterAdd').checked = cfg.openAfterAdd === true;
     renderCategories(cfg.categories, cfg.category);
   } else {
     renderCategories(['主页', '常用', 'AI', '开发', '工作', '家庭', '知识', '运维', '生活', '归档'], '主页');
@@ -35,15 +45,16 @@ function renderCategories(categories = [], selected = '') {
 
 $('add').addEventListener('click', async () => {
   show('正在添加...');
-  const res = await send({ type: 'add-active-tab' });
+  const res = await send({
+    type: 'add-active-tab',
+    baseUrl: $('baseUrl').value,
+    category: $('category').value,
+    openAfterAdd: $('openAfterAdd').checked
+  });
   show(res.message, res.ok);
 });
 
 $('save').addEventListener('click', async () => {
-  const res = await send({
-    type: 'save-options',
-    baseUrl: $('baseUrl').value,
-    category: $('category').value
-  });
+  const res = await saveCurrentOptions();
   show(res.message, res.ok);
 });

@@ -20,8 +20,7 @@
     "activeTab",
     "tabs",
     "contextMenus",
-    "storage",
-    "notifications"
+    "storage"
   ],
   "host_permissions": [
     "http://127.0.0.1:8099/*",

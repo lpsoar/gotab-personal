@@ -1,5 +1,6 @@
 (() => {
   const PARAM_FLAG = 'gotab_add_url';
+  const WEBSITE_INFO_TIMEOUT_MS = 800;
 
   function readPersisted(key) {
     const raw = localStorage.getItem(`persist:${key}`);
@@ -25,6 +26,29 @@
     }
     out._persist = JSON.stringify({ version: -1, rehydrated: true });
     localStorage.setItem(`persist:${key}`, JSON.stringify(out));
+  }
+
+  function readAllPersisted() {
+    const names = [
+      'home',
+      'openType',
+      'wallpaperTheme',
+      'swiper',
+      'clockAndDate',
+      'searchBar',
+      'searchEngineData',
+      'card',
+      'appData',
+      'bottomArea',
+      'simpleMode',
+      'dock'
+    ];
+    const data = {};
+    for (const name of names) {
+      const value = readPersisted(name);
+      if (value) data[name] = value;
+    }
+    return data;
   }
 
   function uid() {
@@ -53,15 +77,53 @@
 
   async function fetchWebsiteInfo(url) {
     try {
-      const res = await fetch('/api/tools/getWebsiteInfo', {
+      const res = await fetchWithTimeout('/api/tools/getWebsiteInfo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url })
-      });
+      }, WEBSITE_INFO_TIMEOUT_MS);
       const json = await res.json();
       return json && json.code === 200 && json.data ? json.data : null;
     } catch {
       return null;
+    }
+  }
+
+  function fetchWithTimeout(url, options, timeoutMs) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    return fetch(url, { ...options, signal: controller.signal })
+      .finally(() => clearTimeout(timer));
+  }
+
+  async function syncLocalDataToCloud(timestamp) {
+    const user = readPersisted('user');
+    const token = user?.token;
+    if (!token) return false;
+    const data = readAllPersisted();
+    if (!data.appData) return false;
+    try {
+      const res = await fetch('/api/user/push', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token
+        },
+        body: JSON.stringify({ data, timestamp })
+      });
+      const json = await res.json();
+      return json?.code === 200;
+    } catch {
+      return false;
+    }
+  }
+
+  function scheduleCloudSync(timestamp) {
+    const run = () => { void syncLocalDataToCloud(timestamp); };
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(run, { timeout: 5000 });
+    } else {
+      setTimeout(run, 0);
     }
   }
 
@@ -106,7 +168,9 @@
       description: info?.description || '通过 Edge 扩展添加'
     });
     writePersisted('appData', appData);
-    localStorage.setItem('updateTimestamp', String(Date.now()));
+    const timestamp = Date.now();
+    localStorage.setItem('updateTimestamp', String(timestamp));
+    void scheduleCloudSync(timestamp);
     return { added: true, message: `已添加到「${target.label || target.originLabel || '默认'}」：${label}` };
   }
 
@@ -130,6 +194,7 @@
     const title = u.searchParams.get('title') || '';
     const url = u.searchParams.get('url') || '';
     const category = u.searchParams.get('category') || '';
+    const openAfterAdd = u.searchParams.get('open_after_add') === '1';
     let ok = false;
     let message = '';
     try {
@@ -142,7 +207,7 @@
     // 清理地址栏，避免 GoTab 主应用把 query 当作普通路由处理，也避免刷新重复添加。
     history.replaceState(null, '', location.pathname + location.hash);
     try { sessionStorage.setItem('lpsoarQuickAddMessage', JSON.stringify({ ok, message, ts: Date.now() })); } catch {}
-    if (ok) {
+    if (ok && !openAfterAdd) {
       // 当前脚本位于 head 且早于 GoTab 主模块；立即停止后续资源加载，避免主应用先处理 query 并跳到 /login。
       try { window.stop(); } catch {}
       // 插件新建的临时 GoTab 标签页只用于写入同源 localStorage；写完后尽量自动关闭，避免用户看到登录/离线数据弹窗。
@@ -150,6 +215,10 @@
         try { window.close(); } catch {}
         setTimeout(() => location.replace(location.pathname || '/'), 120);
       }, 30);
+    } else if (ok) {
+      try { document.documentElement.style.visibility = ''; } catch {}
+      toast(message, true);
+      setTimeout(() => location.replace(location.pathname || '/'), 450);
     } else {
       try { document.documentElement.style.visibility = ''; } catch {}
       toast(message, false);
