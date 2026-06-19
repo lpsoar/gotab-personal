@@ -1,1 +1,1 @@
-var t=[{time:"2026-06-19",version:"lpsoar-custom",smallVersion:"lpsoar-custom",content:"🚀 私有定制版：面向个人本地/LAN 新标签页使用；\n✨ 已移除推荐模块、应用推荐、捐赠赞助、官网推广等外部内容；\n🔒 已关闭注册、邮箱验证码和找回密码入口，仅允许既有账号登录；\n🛠 后续定制将通过 fork + 自定义镜像维护。"}];export{t};
+var t=[{time:"2026-06-19",version:"1.0.0",smallVersion:"1.0.0-lpsoar",content:"🚀 私有定制版：面向个人本地/LAN 新标签页使用；\n✨ 已移除推荐模块、应用推荐、捐赠赞助、官网推广等外部内容；\n🔒 已关闭注册、邮箱验证码和找回密码入口，仅允许既有账号登录；\n🛠 后续定制将通过 fork + 自定义镜像维护。"}];export{t};
