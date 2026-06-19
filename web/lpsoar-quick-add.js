@@ -110,27 +110,49 @@
 
   function handleUrlParams() {
     const u = new URL(location.href);
-    if (u.searchParams.get(PARAM_FLAG) !== '1') return;
+    if (u.searchParams.get(PARAM_FLAG) !== '1') return false;
     const title = u.searchParams.get('title') || '';
     const url = u.searchParams.get('url') || '';
     const category = u.searchParams.get('category') || '';
     let ok = false;
+    let message = '';
     try {
       const res = addCard({ title, url, category });
       ok = true;
-      toast(res.message, true);
+      message = res.message;
     } catch (e) {
-      toast(`添加失败：${e.message || e}`, false);
+      message = `添加失败：${e.message || e}`;
     }
-    // 清理地址栏，避免刷新重复添加。
+    // 清理地址栏，避免 GoTab 主应用把 query 当作普通路由处理，也避免刷新重复添加。
     history.replaceState(null, '', location.pathname + location.hash);
-    if (ok) setTimeout(() => location.reload(), 800);
+    try { sessionStorage.setItem('lpsoarQuickAddMessage', JSON.stringify({ ok, message, ts: Date.now() })); } catch {}
+    if (ok) {
+      // 当前脚本位于 head 且早于 GoTab 主模块；立即停止后续资源加载，避免主应用先处理 query 并跳到 /login。
+      try { window.stop(); } catch {}
+      location.replace(location.pathname || '/');
+    } else {
+      toast(message, false);
+    }
+    return true;
+  }
+
+  function showPendingMessage() {
+    try {
+      const raw = sessionStorage.getItem('lpsoarQuickAddMessage');
+      if (!raw) return;
+      sessionStorage.removeItem('lpsoarQuickAddMessage');
+      const msg = JSON.parse(raw);
+      if (msg && Date.now() - msg.ts < 10000) toast(msg.message, msg.ok);
+    } catch {}
   }
 
   window.lpsoarGotabQuickAdd = addCard;
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', handleUrlParams, { once: true });
-  } else {
-    handleUrlParams();
+  // 必须立即处理 query，不能等 DOMContentLoaded；否则 GoTab 主应用可能先跳转登录/弹初始化上传数据。
+  if (!handleUrlParams()) {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', showPendingMessage, { once: true });
+    } else {
+      showPendingMessage();
+    }
   }
 })();
